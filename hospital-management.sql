@@ -49,3 +49,126 @@ CREATE TABLE staff_roles (
     
     CONSTRAINT chk_access_level CHECK (access_level BETWEEN 1 AND 10)
 );
+
+
+-- TABLE: STAFF
+-- All hospital staff (doctors, nurses, admin, etc.)
+-- Self-referencing for supervisor relationship
+CREATE TABLE staff (
+    staff_id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id VARCHAR(20) NOT NULL UNIQUE,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    date_of_birth DATE NOT NULL,
+    gender ENUM('Male', 'Female', 'Other', 'Prefer not to say') NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    phone VARCHAR(20) NOT NULL,
+    emergency_contact VARCHAR(100),
+    emergency_phone VARCHAR(20),
+    address TEXT,
+    role_id INT NOT NULL,
+    hire_date DATE NOT NULL,
+    termination_date DATE,
+    salary DECIMAL(12, 2),
+    supervisor_id INT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_staff_role 
+        FOREIGN KEY (role_id) 
+        REFERENCES staff_roles(role_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    -- Self-referencing foreign key for supervisor
+    CONSTRAINT fk_staff_supervisor 
+        FOREIGN KEY (supervisor_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_staff_email CHECK (email LIKE '%_@__%.__%'),
+    CONSTRAINT chk_staff_salary CHECK (salary >= 0),
+    CONSTRAINT chk_termination_date 
+        CHECK (termination_date IS NULL OR termination_date >= hire_date)
+);
+
+-- TABLE: DOCTORS
+-- Extended information specific to doctors
+-- One-to-One relationship with Staff
+CREATE TABLE doctors (
+    doctor_id INT AUTO_INCREMENT PRIMARY KEY,
+    staff_id INT NOT NULL UNIQUE,
+    license_number VARCHAR(50) NOT NULL UNIQUE,
+    specialization_id INT NOT NULL,
+    qualification VARCHAR(200) NOT NULL,
+    years_of_experience INT NOT NULL,
+    consultation_fee DECIMAL(10, 2) NOT NULL,
+    max_patients_per_day INT DEFAULT 20,
+    is_accepting_patients BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_doctor_staff 
+        FOREIGN KEY (staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_doctor_specialization 
+        FOREIGN KEY (specialization_id) 
+        REFERENCES specializations(specialization_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_experience CHECK (years_of_experience >= 0),
+    CONSTRAINT chk_consultation_fee CHECK (consultation_fee >= 0),
+    CONSTRAINT chk_max_patients CHECK (max_patients_per_day > 0)
+);
+
+-- TABLE: DOCTOR_DEPARTMENTS
+-- Many-to-Many: Doctors can work in multiple departments
+CREATE TABLE doctor_departments (
+    doctor_department_id INT AUTO_INCREMENT PRIMARY KEY,
+    doctor_id INT NOT NULL,
+    department_id INT NOT NULL,
+    assignment_date DATE NOT NULL,
+    is_primary_department BOOLEAN DEFAULT FALSE,
+    
+    CONSTRAINT fk_dd_doctor 
+        FOREIGN KEY (doctor_id) 
+        REFERENCES doctors(doctor_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_dd_department 
+        FOREIGN KEY (department_id) 
+        REFERENCES departments(department_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT unique_doctor_department 
+        UNIQUE (doctor_id, department_id)
+);
+
+-- TABLE: DOCTOR_SCHEDULE
+-- Doctor availability and working hours
+CREATE TABLE doctor_schedule (
+    schedule_id INT AUTO_INCREMENT PRIMARY KEY,
+    doctor_id INT NOT NULL,
+    day_of_week ENUM('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE,
+    
+    CONSTRAINT fk_schedule_doctor 
+        FOREIGN KEY (doctor_id) 
+        REFERENCES doctors(doctor_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_schedule_time CHECK (end_time > start_time),
+    CONSTRAINT unique_doctor_day_time 
+        UNIQUE (doctor_id, day_of_week, start_time)
+);
