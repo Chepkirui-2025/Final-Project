@@ -368,9 +368,7 @@ CREATE TABLE consultations (
         CHECK (vital_signs_weight IS NULL OR vital_signs_weight > 0)
 );
 
--- ============================================
 -- SECTION 4: PHARMACY & MEDICATIONS
--- ============================================
 
 -- TABLE: MEDICATION_CATEGORIES
 -- Categories of medications
@@ -496,9 +494,7 @@ CREATE TABLE prescription_details (
     CONSTRAINT chk_quantity CHECK (quantity > 0)
 );
 
--- ============================================
 -- SECTION 5: LABORATORY & DIAGNOSTICS
--- ============================================
 
 -- TABLE: LAB_TEST_TYPES
 -- Types of laboratory tests available
@@ -569,6 +565,77 @@ CREATE TABLE lab_tests (
     
     CONSTRAINT fk_lab_technician 
         FOREIGN KEY (technician_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE
+);
+-- TABLE: IMAGING_TYPES
+-- Types of imaging procedures (X-ray, MRI, CT, etc.)
+CREATE TABLE imaging_types (
+    imaging_type_id INT AUTO_INCREMENT PRIMARY KEY,
+    imaging_name VARCHAR(100) NOT NULL UNIQUE,
+    imaging_code VARCHAR(20) NOT NULL UNIQUE,
+    description TEXT,
+    department_id INT,
+    standard_price DECIMAL(10, 2) NOT NULL,
+    preparation_required BOOLEAN DEFAULT FALSE,
+    preparation_instructions TEXT,
+    
+    CONSTRAINT fk_imaging_department 
+        FOREIGN KEY (department_id) 
+        REFERENCES departments(department_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_imaging_price CHECK (standard_price >= 0)
+);
+
+-- TABLE: IMAGING_ORDERS
+-- Radiology and imaging orders
+CREATE TABLE imaging_orders (
+    imaging_order_id INT AUTO_INCREMENT PRIMARY KEY,
+    order_number VARCHAR(20) NOT NULL UNIQUE,
+    patient_id INT NOT NULL,
+    doctor_id INT NOT NULL,
+    consultation_id INT,
+    imaging_type_id INT NOT NULL,
+    order_date DATETIME NOT NULL,
+    scheduled_date DATETIME,
+    completed_date DATETIME,
+    status ENUM('Ordered', 'Scheduled', 'In Progress', 'Completed', 'Cancelled') DEFAULT 'Ordered',
+    body_part VARCHAR(100),
+    clinical_indication TEXT,
+    findings TEXT,
+    impression TEXT,
+    radiologist_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_imaging_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_imaging_doctor 
+        FOREIGN KEY (doctor_id) 
+        REFERENCES doctors(doctor_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_imaging_consultation 
+        FOREIGN KEY (consultation_id) 
+        REFERENCES consultations(consultation_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_imaging_type 
+        FOREIGN KEY (imaging_type_id) 
+        REFERENCES imaging_types(imaging_type_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_imaging_radiologist 
+        FOREIGN KEY (radiologist_staff_id) 
         REFERENCES staff(staff_id)
         ON DELETE SET NULL
         ON UPDATE CASCADE
