@@ -640,3 +640,96 @@ CREATE TABLE imaging_orders (
         ON DELETE SET NULL
         ON UPDATE CASCADE
 );
+
+-- ============================================
+-- SECTION 6: FACILITY MANAGEMENT
+-- ============================================
+
+-- TABLE: WARDS
+-- Hospital wards (ICU, General Ward, etc.)
+CREATE TABLE wards (
+    ward_id INT AUTO_INCREMENT PRIMARY KEY,
+    ward_name VARCHAR(100) NOT NULL UNIQUE,
+    ward_code VARCHAR(20) NOT NULL UNIQUE,
+    department_id INT NOT NULL,
+    floor_number INT,
+    total_beds INT NOT NULL,
+    available_beds INT NOT NULL,
+    ward_type ENUM('General', 'Private', 'Semi-Private', 'ICU', 'Emergency', 'Pediatric', 'Maternity') NOT NULL,
+    charge_per_day DECIMAL(10, 2) NOT NULL,
+    
+    CONSTRAINT fk_ward_department 
+        FOREIGN KEY (department_id) 
+        REFERENCES departments(department_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_total_beds CHECK (total_beds > 0),
+    CONSTRAINT chk_available_beds CHECK (available_beds >= 0 AND available_beds <= total_beds),
+    CONSTRAINT chk_ward_charge CHECK (charge_per_day >= 0)
+);
+
+-- TABLE: BEDS
+-- Individual hospital beds
+CREATE TABLE beds (
+    bed_id INT AUTO_INCREMENT PRIMARY KEY,
+    bed_number VARCHAR(20) NOT NULL UNIQUE,
+    ward_id INT NOT NULL,
+    bed_type ENUM('Standard', 'ICU', 'Electric', 'Pediatric', 'Maternity') NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE,
+    is_operational BOOLEAN DEFAULT TRUE,
+    last_maintenance_date DATE,
+    
+    CONSTRAINT fk_bed_ward 
+        FOREIGN KEY (ward_id) 
+        REFERENCES wards(ward_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+-- TABLE: ADMISSIONS
+-- Patient hospital admissions
+CREATE TABLE admissions (
+    admission_id INT AUTO_INCREMENT PRIMARY KEY,
+    admission_number VARCHAR(20) NOT NULL UNIQUE,
+    patient_id INT NOT NULL,
+    doctor_id INT NOT NULL,
+    department_id INT NOT NULL,
+    bed_id INT NOT NULL,
+    admission_date DATETIME NOT NULL,
+    discharge_date DATETIME,
+    admission_type ENUM('Emergency', 'Elective', 'Transfer', 'Observation') NOT NULL,
+    admission_reason TEXT NOT NULL,
+    status ENUM('Admitted', 'Under Treatment', 'Discharged', 'Transferred', 'Deceased') DEFAULT 'Admitted',
+    discharge_summary TEXT,
+    discharge_instructions TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_admission_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_admission_doctor 
+        FOREIGN KEY (doctor_id) 
+        REFERENCES doctors(doctor_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_admission_department 
+        FOREIGN KEY (department_id) 
+        REFERENCES departments(department_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_admission_bed 
+        FOREIGN KEY (bed_id) 
+        REFERENCES beds(bed_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_discharge_date 
+        CHECK (discharge_date IS NULL OR discharge_date >= admission_date)
+);
