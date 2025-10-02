@@ -957,3 +957,149 @@ CREATE TABLE insurance_claims (
     CONSTRAINT chk_claim_amount CHECK (claim_amount > 0),
     CONSTRAINT chk_approved_amount CHECK (approved_amount IS NULL OR approved_amount >= 0)
 );
+
+-- ============================================
+-- SECTION 8: EMERGENCY & AMBULANCE SERVICES
+-- ============================================
+
+-- TABLE: AMBULANCES
+-- Hospital ambulance fleet
+CREATE TABLE ambulances (
+    ambulance_id INT AUTO_INCREMENT PRIMARY KEY,
+    vehicle_number VARCHAR(20) NOT NULL UNIQUE,
+    vehicle_type ENUM('Basic Life Support', 'Advanced Life Support', 'Critical Care', 'Air Ambulance') NOT NULL,
+    registration_number VARCHAR(50) NOT NULL UNIQUE,
+    model VARCHAR(100),
+    year INT,
+    capacity INT NOT NULL,
+    equipment_list TEXT,
+    last_maintenance_date DATE,
+    next_maintenance_date DATE,
+    is_operational BOOLEAN DEFAULT TRUE,
+    current_location VARCHAR(200),
+    
+    CONSTRAINT chk_ambulance_year CHECK (year >= 1990 AND year <= YEAR(CURDATE()) + 1),
+    CONSTRAINT chk_ambulance_capacity CHECK (capacity > 0)
+);
+
+-- TABLE: AMBULANCE_STAFF
+-- Staff assigned to ambulances
+CREATE TABLE ambulance_staff (
+    ambulance_staff_id INT AUTO_INCREMENT PRIMARY KEY,
+    staff_id INT NOT NULL,
+    role ENUM('Driver', 'Paramedic', 'EMT', 'Nurse', 'Doctor') NOT NULL,
+    license_number VARCHAR(50),
+    certification_expiry DATE,
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    CONSTRAINT fk_amb_staff_staff 
+        FOREIGN KEY (staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT unique_staff_role 
+        UNIQUE (staff_id, role)
+);
+
+-- TABLE: EMERGENCY_CALLS
+-- Emergency call logs
+CREATE TABLE emergency_calls (
+    call_id INT AUTO_INCREMENT PRIMARY KEY,
+    call_number VARCHAR(20) NOT NULL UNIQUE,
+    caller_name VARCHAR(100) NOT NULL,
+    caller_phone VARCHAR(20) NOT NULL,
+    call_date_time DATETIME NOT NULL,
+    incident_location TEXT NOT NULL,
+    incident_type VARCHAR(100) NOT NULL,
+    severity ENUM('Minor', 'Moderate', 'Critical', 'Life-threatening') NOT NULL,
+    description TEXT,
+    status ENUM('Received', 'Dispatched', 'En Route', 'On Scene', 'Transporting', 'Completed', 'Cancelled') DEFAULT 'Received',
+    ambulance_id INT,
+    patient_id INT,
+    received_by_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_call_ambulance 
+        FOREIGN KEY (ambulance_id) 
+        REFERENCES ambulances(ambulance_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_call_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_call_staff 
+        FOREIGN KEY (received_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE
+);
+
+-- TABLE: AMBULANCE_TRIPS
+-- Ambulance trip records
+CREATE TABLE ambulance_trips (
+    trip_id INT AUTO_INCREMENT PRIMARY KEY,
+    trip_number VARCHAR(20) NOT NULL UNIQUE,
+    emergency_call_id INT,
+    ambulance_id INT NOT NULL,
+    patient_id INT,
+    pickup_location TEXT NOT NULL,
+    dropoff_location TEXT NOT NULL,
+    pickup_time DATETIME NOT NULL,
+    arrival_time DATETIME,
+    departure_time DATETIME,
+    dropoff_time DATETIME,
+    distance_km DECIMAL(6, 2),
+    trip_charge DECIMAL(10, 2) NOT NULL,
+    status ENUM('Scheduled', 'In Progress', 'Completed', 'Cancelled') DEFAULT 'Scheduled',
+    notes TEXT,
+    
+    CONSTRAINT fk_trip_call 
+        FOREIGN KEY (emergency_call_id) 
+        REFERENCES emergency_calls(call_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_trip_ambulance 
+        FOREIGN KEY (ambulance_id) 
+        REFERENCES ambulances(ambulance_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_trip_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_distance CHECK (distance_km IS NULL OR distance_km >= 0),
+    CONSTRAINT chk_trip_charge CHECK (trip_charge >= 0)
+);
+
+-- TABLE: AMBULANCE_TRIP_STAFF
+-- Staff assigned to specific ambulance trips
+CREATE TABLE ambulance_trip_staff (
+    trip_staff_id INT AUTO_INCREMENT PRIMARY KEY,
+    trip_id INT NOT NULL,
+    ambulance_staff_id INT NOT NULL,
+    
+    CONSTRAINT fk_ts_trip 
+        FOREIGN KEY (trip_id) 
+        REFERENCES ambulance_trips(trip_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_ts_staff 
+        FOREIGN KEY (ambulance_staff_id) 
+        REFERENCES ambulance_staff(ambulance_staff_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT unique_trip_staff 
+        UNIQUE (trip_id, ambulance_staff_id)
+);
