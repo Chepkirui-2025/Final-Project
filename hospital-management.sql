@@ -1313,3 +1313,48 @@ CREATE TABLE purchase_order_items (
     CONSTRAINT chk_poi_total_price CHECK (total_price >= 0),
     CONSTRAINT chk_poi_received CHECK (quantity_received >= 0 AND quantity_received <= quantity)
 );
+
+-- ============================================
+-- SECTION 10: AUDIT & SYSTEM LOGS
+-- ============================================
+
+-- TABLE: AUDIT_LOGS
+-- System audit trail for security and compliance
+CREATE TABLE audit_logs (
+    audit_id INT AUTO_INCREMENT PRIMARY KEY,
+    table_name VARCHAR(100) NOT NULL,
+    record_id INT NOT NULL,
+    action ENUM('INSERT', 'UPDATE', 'DELETE') NOT NULL,
+    old_values TEXT,
+    new_values TEXT,
+    changed_by_staff_id INT,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(500),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_audit_staff 
+        FOREIGN KEY (changed_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE
+);
+
+-- TABLE: SYSTEM_SETTINGS
+-- Hospital system configuration settings
+CREATE TABLE system_settings (
+    setting_id INT AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(100) NOT NULL UNIQUE,
+    setting_value TEXT,
+    setting_type VARCHAR(50) NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    updated_by_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_setting_staff 
+        FOREIGN KEY (updated_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE
+);
