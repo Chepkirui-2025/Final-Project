@@ -261,3 +261,109 @@ CREATE TABLE patient_medical_history (
         ON DELETE SET NULL
         ON UPDATE CASCADE
 );
+
+-- ============================================
+-- SECTION 3: APPOINTMENTS & VISITS
+-- ============================================
+
+-- TABLE: APPOINTMENT_TYPES
+-- Different types of appointments
+CREATE TABLE appointment_types (
+    appointment_type_id INT AUTO_INCREMENT PRIMARY KEY,
+    type_name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    default_duration_minutes INT NOT NULL,
+    
+    CONSTRAINT chk_duration CHECK (default_duration_minutes > 0)
+);
+
+-- TABLE: APPOINTMENTS
+-- Patient appointments with doctors
+CREATE TABLE appointments (
+    appointment_id INT AUTO_INCREMENT PRIMARY KEY,
+    appointment_number VARCHAR(20) NOT NULL UNIQUE,
+    patient_id INT NOT NULL,
+    doctor_id INT NOT NULL,
+    department_id INT NOT NULL,
+    appointment_type_id INT NOT NULL,
+    appointment_date DATE NOT NULL,
+    appointment_time TIME NOT NULL,
+    duration_minutes INT NOT NULL,
+    status ENUM('Scheduled', 'Confirmed', 'In Progress', 'Completed', 'Cancelled', 'No Show') DEFAULT 'Scheduled',
+    reason_for_visit TEXT,
+    cancellation_reason TEXT,
+    scheduled_by_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_appointment_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_appointment_doctor 
+        FOREIGN KEY (doctor_id) 
+        REFERENCES doctors(doctor_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_appointment_department 
+        FOREIGN KEY (department_id) 
+        REFERENCES departments(department_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_appointment_type 
+        FOREIGN KEY (appointment_type_id) 
+        REFERENCES appointment_types(appointment_type_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_appointment_staff 
+        FOREIGN KEY (scheduled_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_appointment_duration CHECK (duration_minutes > 0)
+);
+
+-- TABLE: CONSULTATIONS
+-- Detailed consultation records for completed appointments
+CREATE TABLE consultations (
+    consultation_id INT AUTO_INCREMENT PRIMARY KEY,
+    appointment_id INT NOT NULL UNIQUE,
+    chief_complaint TEXT NOT NULL,
+    symptoms TEXT,
+    vital_signs_temperature DECIMAL(4, 2),
+    vital_signs_blood_pressure VARCHAR(20),
+    vital_signs_pulse INT,
+    vital_signs_respiratory_rate INT,
+    vital_signs_weight DECIMAL(5, 2),
+    vital_signs_height DECIMAL(5, 2),
+    examination_notes TEXT,
+    diagnosis TEXT,
+    treatment_plan TEXT,
+    follow_up_required BOOLEAN DEFAULT FALSE,
+    follow_up_date DATE,
+    consultation_start_time DATETIME NOT NULL,
+    consultation_end_time DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_consultation_appointment 
+        FOREIGN KEY (appointment_id) 
+        REFERENCES appointments(appointment_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_consultation_time 
+        CHECK (consultation_end_time IS NULL OR consultation_end_time > consultation_start_time),
+    CONSTRAINT chk_temperature 
+        CHECK (vital_signs_temperature IS NULL OR vital_signs_temperature BETWEEN 95 AND 110),
+    CONSTRAINT chk_pulse 
+        CHECK (vital_signs_pulse IS NULL OR vital_signs_pulse BETWEEN 40 AND 200),
+    CONSTRAINT chk_weight 
+        CHECK (vital_signs_weight IS NULL OR vital_signs_weight > 0)
+);
