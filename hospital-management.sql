@@ -1358,3 +1358,76 @@ CREATE TABLE system_settings (
         ON DELETE SET NULL
         ON UPDATE CASCADE
 );
+
+-- ============================================
+-- SECTION 11: ADDITIONAL CONSTRAINTS & INDEXES
+-- ============================================
+
+-- Add foreign key for department head doctor (circular reference)
+ALTER TABLE departments
+ADD CONSTRAINT fk_department_head 
+    FOREIGN KEY (head_doctor_id) 
+    REFERENCES doctors(doctor_id)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE;
+
+-- Indexes for frequently queried columns
+
+-- Staff indexes
+CREATE INDEX idx_staff_name ON staff(last_name, first_name);
+CREATE INDEX idx_staff_role ON staff(role_id, is_active);
+CREATE INDEX idx_staff_email ON staff(email);
+
+-- Doctor indexes
+CREATE INDEX idx_doctor_specialization ON doctors(specialization_id, is_accepting_patients);
+CREATE INDEX idx_doctor_license ON doctors(license_number);
+
+-- Patient indexes
+CREATE INDEX idx_patient_name ON patients(last_name, first_name);
+CREATE INDEX idx_patient_number ON patients(patient_number);
+CREATE INDEX idx_patient_phone ON patients(phone);
+CREATE INDEX idx_patient_registration ON patients(registration_date);
+
+-- Appointment indexes
+CREATE INDEX idx_appointment_date ON appointments(appointment_date, appointment_time);
+CREATE INDEX idx_appointment_status ON appointments(status);
+CREATE INDEX idx_appointment_patient ON appointments(patient_id, appointment_date);
+CREATE INDEX idx_appointment_doctor ON appointments(doctor_id, appointment_date);
+
+-- Admission indexes
+CREATE INDEX idx_admission_date ON admissions(admission_date);
+CREATE INDEX idx_admission_status ON admissions(status);
+CREATE INDEX idx_admission_patient ON admissions(patient_id, status);
+
+-- Prescription indexes
+CREATE INDEX idx_prescription_date ON prescriptions(prescription_date);
+CREATE INDEX idx_prescription_status ON prescriptions(status);
+
+-- Lab test indexes
+CREATE INDEX idx_lab_order_date ON lab_tests(order_date);
+CREATE INDEX idx_lab_status ON lab_tests(status);
+CREATE INDEX idx_lab_patient ON lab_tests(patient_id);
+
+-- Billing indexes
+CREATE INDEX idx_invoice_date ON invoices(invoice_date);
+CREATE INDEX idx_invoice_status ON invoices(status);
+CREATE INDEX idx_invoice_patient ON invoices(patient_id);
+CREATE INDEX idx_payment_date ON payments(payment_date);
+
+-- Inventory indexes
+CREATE INDEX idx_medication_name ON medications(medication_name);
+CREATE INDEX idx_medication_stock ON medications(stock_quantity, reorder_level);
+CREATE INDEX idx_supply_stock ON medical_supplies(current_stock, reorder_level);
+
+-- Equipment indexes
+CREATE INDEX idx_equipment_status ON medical_equipment(status);
+CREATE INDEX idx_equipment_department ON medical_equipment(department_id, status);
+
+-- Emergency indexes
+CREATE INDEX idx_emergency_date ON emergency_calls(call_date_time);
+CREATE INDEX idx_emergency_status ON emergency_calls(status);
+
+-- Composite indexes for complex queries
+CREATE INDEX idx_consultation_appointment_patient ON consultations(appointment_id, consultation_start_time);
+CREATE INDEX idx_doctor_schedule_day ON doctor_schedule(doctor_id, day_of_week, is_available);
+CREATE INDEX idx_bed_ward_available ON beds(ward_id, is_available, is_operational);
