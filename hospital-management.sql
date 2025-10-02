@@ -1103,3 +1103,213 @@ CREATE TABLE ambulance_trip_staff (
     CONSTRAINT unique_trip_staff 
         UNIQUE (trip_id, ambulance_staff_id)
 );
+
+-- ============================================
+-- SECTION 9: INVENTORY MANAGEMENT
+-- ============================================
+
+-- TABLE: SUPPLIERS
+-- Medical supplies and equipment suppliers
+CREATE TABLE suppliers (
+    supplier_id INT AUTO_INCREMENT PRIMARY KEY,
+    supplier_name VARCHAR(200) NOT NULL UNIQUE,
+    supplier_code VARCHAR(20) NOT NULL UNIQUE,
+    contact_person VARCHAR(100),
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    address TEXT,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    country VARCHAR(100) DEFAULT 'USA',
+    payment_terms VARCHAR(100),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT chk_supplier_email CHECK (email IS NULL OR email LIKE '%_@__%.__%')
+);
+
+-- TABLE: EQUIPMENT_CATEGORIES
+-- Categories for medical equipment
+CREATE TABLE equipment_categories (
+    category_id INT AUTO_INCREMENT PRIMARY KEY,
+    category_name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+-- TABLE: MEDICAL_EQUIPMENT
+-- Hospital medical equipment inventory
+CREATE TABLE medical_equipment (
+    equipment_id INT AUTO_INCREMENT PRIMARY KEY,
+    equipment_name VARCHAR(200) NOT NULL,
+    equipment_code VARCHAR(20) NOT NULL UNIQUE,
+    category_id INT NOT NULL,
+    manufacturer VARCHAR(100),
+    model_number VARCHAR(100),
+    serial_number VARCHAR(100) UNIQUE,
+    purchase_date DATE NOT NULL,
+    purchase_price DECIMAL(12, 2) NOT NULL,
+    warranty_expiry_date DATE,
+    department_id INT,
+    location VARCHAR(200),
+    status ENUM('Available', 'In Use', 'Under Maintenance', 'Out of Service', 'Disposed') DEFAULT 'Available',
+    last_maintenance_date DATE,
+    next_maintenance_date DATE,
+    maintenance_interval_days INT,
+    notes TEXT,
+    
+    CONSTRAINT fk_equipment_category 
+        FOREIGN KEY (category_id) 
+        REFERENCES equipment_categories(category_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_equipment_department 
+        FOREIGN KEY (department_id) 
+        REFERENCES departments(department_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_purchase_price CHECK (purchase_price >= 0),
+    CONSTRAINT chk_maintenance_interval CHECK (maintenance_interval_days IS NULL OR maintenance_interval_days > 0)
+);
+
+-- TABLE: EQUIPMENT_MAINTENANCE
+-- Equipment maintenance records
+CREATE TABLE equipment_maintenance (
+    maintenance_id INT AUTO_INCREMENT PRIMARY KEY,
+    equipment_id INT NOT NULL,
+    maintenance_type ENUM('Preventive', 'Corrective', 'Calibration', 'Inspection') NOT NULL,
+    maintenance_date DATE NOT NULL,
+    performed_by_staff_id INT,
+    external_vendor VARCHAR(100),
+    description TEXT,
+    cost DECIMAL(10, 2),
+    next_maintenance_date DATE,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_maint_equipment 
+        FOREIGN KEY (equipment_id) 
+        REFERENCES medical_equipment(equipment_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_maint_staff 
+        FOREIGN KEY (performed_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_maint_cost CHECK (cost IS NULL OR cost >= 0)
+);
+
+-- TABLE: SUPPLY_CATEGORIES
+-- Categories for medical supplies
+CREATE TABLE supply_categories (
+    category_id INT AUTO_INCREMENT PRIMARY KEY,
+    category_name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+-- TABLE: MEDICAL_SUPPLIES
+-- Consumable medical supplies inventory
+CREATE TABLE medical_supplies (
+    supply_id INT AUTO_INCREMENT PRIMARY KEY,
+    supply_name VARCHAR(200) NOT NULL,
+    supply_code VARCHAR(20) NOT NULL UNIQUE,
+    category_id INT NOT NULL,
+    unit_of_measure VARCHAR(20) NOT NULL,
+    unit_price DECIMAL(10, 2) NOT NULL,
+    current_stock INT NOT NULL DEFAULT 0,
+    reorder_level INT NOT NULL,
+    maximum_stock_level INT,
+    supplier_id INT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_supply_category 
+        FOREIGN KEY (category_id) 
+        REFERENCES supply_categories(category_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_supply_supplier 
+        FOREIGN KEY (supplier_id) 
+        REFERENCES suppliers(supplier_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_supply_price CHECK (unit_price >= 0),
+    CONSTRAINT chk_supply_stock CHECK (current_stock >= 0),
+    CONSTRAINT chk_supply_reorder CHECK (reorder_level >= 0),
+    CONSTRAINT chk_supply_max_stock CHECK (maximum_stock_level IS NULL OR maximum_stock_level >= reorder_level)
+);
+
+-- TABLE: PURCHASE_ORDERS
+-- Purchase orders for supplies and equipment
+CREATE TABLE purchase_orders (
+    po_id INT AUTO_INCREMENT PRIMARY KEY,
+    po_number VARCHAR(20) NOT NULL UNIQUE,
+    supplier_id INT NOT NULL,
+    order_date DATE NOT NULL,
+    expected_delivery_date DATE,
+    delivery_date DATE,
+    total_amount DECIMAL(12, 2) NOT NULL,
+    status ENUM('Draft', 'Submitted', 'Approved', 'Ordered', 'Partially Received', 'Received', 'Cancelled') DEFAULT 'Draft',
+    notes TEXT,
+    created_by_staff_id INT,
+    approved_by_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_po_supplier 
+        FOREIGN KEY (supplier_id) 
+        REFERENCES suppliers(supplier_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_po_created_by 
+        FOREIGN KEY (created_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_po_approved_by 
+        FOREIGN KEY (approved_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_po_amount CHECK (total_amount >= 0)
+);
+
+-- TABLE: PURCHASE_ORDER_ITEMS
+-- Line items in purchase orders
+CREATE TABLE purchase_order_items (
+    po_item_id INT AUTO_INCREMENT PRIMARY KEY,
+    po_id INT NOT NULL,
+    supply_id INT,
+    item_description VARCHAR(500) NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10, 2) NOT NULL,
+    total_price DECIMAL(12, 2) NOT NULL,
+    quantity_received INT DEFAULT 0,
+    
+    CONSTRAINT fk_poi_po 
+        FOREIGN KEY (po_id) 
+        REFERENCES purchase_orders(po_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_poi_supply 
+        FOREIGN KEY (supply_id) 
+        REFERENCES medical_supplies(supply_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_poi_quantity CHECK (quantity > 0),
+    CONSTRAINT chk_poi_unit_price CHECK (unit_price >= 0),
+    CONSTRAINT chk_poi_total_price CHECK (total_price >= 0),
+    CONSTRAINT chk_poi_received CHECK (quantity_received >= 0 AND quantity_received <= quantity)
+);
