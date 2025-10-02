@@ -367,3 +367,209 @@ CREATE TABLE consultations (
     CONSTRAINT chk_weight 
         CHECK (vital_signs_weight IS NULL OR vital_signs_weight > 0)
 );
+
+-- ============================================
+-- SECTION 4: PHARMACY & MEDICATIONS
+-- ============================================
+
+-- TABLE: MEDICATION_CATEGORIES
+-- Categories of medications
+CREATE TABLE medication_categories (
+    category_id INT AUTO_INCREMENT PRIMARY KEY,
+    category_name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+-- TABLE: MEDICATIONS
+-- Hospital pharmacy inventory
+CREATE TABLE medications (
+    medication_id INT AUTO_INCREMENT PRIMARY KEY,
+    medication_name VARCHAR(200) NOT NULL,
+    generic_name VARCHAR(200),
+    category_id INT NOT NULL,
+    manufacturer VARCHAR(100),
+    dosage_form VARCHAR(50),
+    strength VARCHAR(50),
+    unit_price DECIMAL(10, 2) NOT NULL,
+    stock_quantity INT NOT NULL DEFAULT 0,
+    reorder_level INT NOT NULL,
+    storage_conditions TEXT,
+    requires_prescription BOOLEAN DEFAULT TRUE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_medication_category 
+        FOREIGN KEY (category_id) 
+        REFERENCES medication_categories(category_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_unit_price CHECK (unit_price >= 0),
+    CONSTRAINT chk_stock_quantity CHECK (stock_quantity >= 0),
+    CONSTRAINT chk_reorder_level CHECK (reorder_level >= 0)
+);
+
+-- TABLE: MEDICATION_BATCHES
+-- Track medication batches with expiry dates
+CREATE TABLE medication_batches (
+    batch_id INT AUTO_INCREMENT PRIMARY KEY,
+    medication_id INT NOT NULL,
+    batch_number VARCHAR(50) NOT NULL UNIQUE,
+    manufacture_date DATE NOT NULL,
+    expiry_date DATE NOT NULL,
+    quantity INT NOT NULL,
+    supplier VARCHAR(100),
+    purchase_price DECIMAL(10, 2) NOT NULL,
+    received_date DATE NOT NULL,
+    
+    CONSTRAINT fk_batch_medication 
+        FOREIGN KEY (medication_id) 
+        REFERENCES medications(medication_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_expiry_date CHECK (expiry_date > manufacture_date),
+    CONSTRAINT chk_batch_quantity CHECK (quantity > 0),
+    CONSTRAINT chk_purchase_price CHECK (purchase_price >= 0)
+);
+
+-- TABLE: PRESCRIPTIONS
+-- Doctor prescriptions for patients
+CREATE TABLE prescriptions (
+    prescription_id INT AUTO_INCREMENT PRIMARY KEY,
+    prescription_number VARCHAR(20) NOT NULL UNIQUE,
+    consultation_id INT NOT NULL,
+    patient_id INT NOT NULL,
+    doctor_id INT NOT NULL,
+    prescription_date DATE NOT NULL,
+    status ENUM('Active', 'Dispensed', 'Partially Dispensed', 'Cancelled', 'Expired') DEFAULT 'Active',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_prescription_consultation 
+        FOREIGN KEY (consultation_id) 
+        REFERENCES consultations(consultation_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_prescription_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_prescription_doctor 
+        FOREIGN KEY (doctor_id) 
+        REFERENCES doctors(doctor_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE
+);
+
+-- TABLE: PRESCRIPTION_DETAILS
+-- Individual medications in a prescription
+-- Many-to-Many: Prescriptions ↔ Medications
+CREATE TABLE prescription_details (
+    prescription_detail_id INT AUTO_INCREMENT PRIMARY KEY,
+    prescription_id INT NOT NULL,
+    medication_id INT NOT NULL,
+    dosage VARCHAR(100) NOT NULL,
+    frequency VARCHAR(100) NOT NULL,
+    duration_days INT NOT NULL,
+    quantity INT NOT NULL,
+    instructions TEXT,
+    
+    CONSTRAINT fk_pd_prescription 
+        FOREIGN KEY (prescription_id) 
+        REFERENCES prescriptions(prescription_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_pd_medication 
+        FOREIGN KEY (medication_id) 
+        REFERENCES medications(medication_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_duration CHECK (duration_days > 0),
+    CONSTRAINT chk_quantity CHECK (quantity > 0)
+);
+
+-- ============================================
+-- SECTION 5: LABORATORY & DIAGNOSTICS
+-- ============================================
+
+-- TABLE: LAB_TEST_TYPES
+-- Types of laboratory tests available
+CREATE TABLE lab_test_types (
+    test_type_id INT AUTO_INCREMENT PRIMARY KEY,
+    test_name VARCHAR(200) NOT NULL UNIQUE,
+    test_code VARCHAR(20) NOT NULL UNIQUE,
+    description TEXT,
+    department_id INT,
+    standard_price DECIMAL(10, 2) NOT NULL,
+    typical_turnaround_hours INT,
+    preparation_instructions TEXT,
+    
+    CONSTRAINT fk_test_department 
+        FOREIGN KEY (department_id) 
+        REFERENCES departments(department_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_test_price CHECK (standard_price >= 0),
+    CONSTRAINT chk_turnaround CHECK (typical_turnaround_hours IS NULL OR typical_turnaround_hours > 0)
+);
+
+-- TABLE: LAB_TESTS
+-- Laboratory test orders
+CREATE TABLE lab_tests (
+    lab_test_id INT AUTO_INCREMENT PRIMARY KEY,
+    test_number VARCHAR(20) NOT NULL UNIQUE,
+    patient_id INT NOT NULL,
+    doctor_id INT NOT NULL,
+    consultation_id INT,
+    test_type_id INT NOT NULL,
+    order_date DATETIME NOT NULL,
+    sample_collected_date DATETIME,
+    result_date DATETIME,
+    status ENUM('Ordered', 'Sample Collected', 'In Progress', 'Completed', 'Cancelled') DEFAULT 'Ordered',
+    priority ENUM('Routine', 'Urgent', 'STAT') DEFAULT 'Routine',
+    results TEXT,
+    normal_range VARCHAR(100),
+    is_abnormal BOOLEAN DEFAULT FALSE,
+    notes TEXT,
+    technician_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_lab_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_lab_doctor 
+        FOREIGN KEY (doctor_id) 
+        REFERENCES doctors(doctor_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_lab_consultation 
+        FOREIGN KEY (consultation_id) 
+        REFERENCES consultations(consultation_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_lab_test_type 
+        FOREIGN KEY (test_type_id) 
+        REFERENCES lab_test_types(test_type_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_lab_technician 
+        FOREIGN KEY (technician_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE
+);
