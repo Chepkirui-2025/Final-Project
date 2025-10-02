@@ -733,3 +733,227 @@ CREATE TABLE admissions (
     CONSTRAINT chk_discharge_date 
         CHECK (discharge_date IS NULL OR discharge_date >= admission_date)
 );
+
+-- ============================================
+-- SECTION 7: BILLING & INSURANCE
+-- ============================================
+
+-- TABLE: INSURANCE_PROVIDERS
+-- Insurance companies
+CREATE TABLE insurance_providers (
+    provider_id INT AUTO_INCREMENT PRIMARY KEY,
+    provider_name VARCHAR(200) NOT NULL UNIQUE,
+    provider_code VARCHAR(20) NOT NULL UNIQUE,
+    contact_person VARCHAR(100),
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    address TEXT,
+    payment_terms_days INT DEFAULT 30,
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    CONSTRAINT chk_payment_terms CHECK (payment_terms_days > 0)
+);
+
+-- TABLE: PATIENT_INSURANCE
+-- Patient insurance information
+CREATE TABLE patient_insurance (
+    patient_insurance_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT NOT NULL,
+    provider_id INT NOT NULL,
+    policy_number VARCHAR(50) NOT NULL,
+    group_number VARCHAR(50),
+    policy_holder_name VARCHAR(100) NOT NULL,
+    policy_holder_relation VARCHAR(50),
+    coverage_start_date DATE NOT NULL,
+    coverage_end_date DATE,
+    is_primary BOOLEAN DEFAULT TRUE,
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    CONSTRAINT fk_pi_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_pi_provider 
+        FOREIGN KEY (provider_id) 
+        REFERENCES insurance_providers(provider_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_coverage_dates 
+        CHECK (coverage_end_date IS NULL OR coverage_end_date >= coverage_start_date),
+    
+    CONSTRAINT unique_patient_policy 
+        UNIQUE (patient_id, provider_id, policy_number)
+);
+
+-- TABLE: BILLING_CATEGORIES
+-- Categories for billing items
+CREATE TABLE billing_categories (
+    category_id INT AUTO_INCREMENT PRIMARY KEY,
+    category_name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+-- TABLE: INVOICES
+-- Patient invoices
+CREATE TABLE invoices (
+    invoice_id INT AUTO_INCREMENT PRIMARY KEY,
+    invoice_number VARCHAR(20) NOT NULL UNIQUE,
+    patient_id INT NOT NULL,
+    appointment_id INT,
+    admission_id INT,
+    invoice_date DATE NOT NULL,
+    due_date DATE NOT NULL,
+    subtotal DECIMAL(12, 2) NOT NULL,
+    tax_amount DECIMAL(10, 2) DEFAULT 0.00,
+    discount_amount DECIMAL(10, 2) DEFAULT 0.00,
+    total_amount DECIMAL(12, 2) NOT NULL,
+    paid_amount DECIMAL(12, 2) DEFAULT 0.00,
+    balance_amount DECIMAL(12, 2) NOT NULL,
+    status ENUM('Draft', 'Pending', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled') DEFAULT 'Pending',
+    notes TEXT,
+    created_by_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_invoice_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_invoice_appointment 
+        FOREIGN KEY (appointment_id) 
+        REFERENCES appointments(appointment_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_invoice_admission 
+        FOREIGN KEY (admission_id) 
+        REFERENCES admissions(admission_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_invoice_staff 
+        FOREIGN KEY (created_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_due_date CHECK (due_date >= invoice_date),
+    CONSTRAINT chk_subtotal CHECK (subtotal >= 0),
+    CONSTRAINT chk_tax CHECK (tax_amount >= 0),
+    CONSTRAINT chk_discount CHECK (discount_amount >= 0),
+    CONSTRAINT chk_total CHECK (total_amount >= 0),
+    CONSTRAINT chk_paid CHECK (paid_amount >= 0),
+    CONSTRAINT chk_balance CHECK (balance_amount >= 0)
+);
+
+-- TABLE: INVOICE_ITEMS
+-- Line items on invoices
+CREATE TABLE invoice_items (
+    invoice_item_id INT AUTO_INCREMENT PRIMARY KEY,
+    invoice_id INT NOT NULL,
+    category_id INT NOT NULL,
+    description VARCHAR(500) NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10, 2) NOT NULL,
+    total_price DECIMAL(12, 2) NOT NULL,
+    
+    CONSTRAINT fk_item_invoice 
+        FOREIGN KEY (invoice_id) 
+        REFERENCES invoices(invoice_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_item_category 
+        FOREIGN KEY (category_id) 
+        REFERENCES billing_categories(category_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_item_quantity CHECK (quantity > 0),
+    CONSTRAINT chk_item_unit_price CHECK (unit_price >= 0),
+    CONSTRAINT chk_item_total_price CHECK (total_price >= 0)
+);
+
+-- TABLE: PAYMENTS
+-- Payment records
+CREATE TABLE payments (
+    payment_id INT AUTO_INCREMENT PRIMARY KEY,
+    payment_number VARCHAR(20) NOT NULL UNIQUE,
+    invoice_id INT NOT NULL,
+    patient_id INT NOT NULL,
+    payment_date DATETIME NOT NULL,
+    amount DECIMAL(12, 2) NOT NULL,
+    payment_method ENUM('Cash', 'Credit Card', 'Debit Card', 'Check', 'Bank Transfer', 'Insurance', 'Other') NOT NULL,
+    transaction_reference VARCHAR(100),
+    status ENUM('Pending', 'Completed', 'Failed', 'Refunded') DEFAULT 'Completed',
+    notes TEXT,
+    received_by_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_payment_invoice 
+        FOREIGN KEY (invoice_id) 
+        REFERENCES invoices(invoice_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_payment_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_payment_staff 
+        FOREIGN KEY (received_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_payment_amount CHECK (amount > 0)
+);
+
+-- TABLE: INSURANCE_CLAIMS
+-- Insurance claim submissions
+CREATE TABLE insurance_claims (
+    claim_id INT AUTO_INCREMENT PRIMARY KEY,
+    claim_number VARCHAR(20) NOT NULL UNIQUE,
+    invoice_id INT NOT NULL,
+    patient_insurance_id INT NOT NULL,
+    claim_date DATE NOT NULL,
+    claim_amount DECIMAL(12, 2) NOT NULL,
+    approved_amount DECIMAL(12, 2),
+    status ENUM('Submitted', 'Under Review', 'Approved', 'Partially Approved', 'Rejected', 'Paid') DEFAULT 'Submitted',
+    submission_date DATE NOT NULL,
+    review_date DATE,
+    payment_date DATE,
+    rejection_reason TEXT,
+    notes TEXT,
+    processed_by_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_claim_invoice 
+        FOREIGN KEY (invoice_id) 
+        REFERENCES invoices(invoice_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_claim_insurance 
+        FOREIGN KEY (patient_insurance_id) 
+        REFERENCES patient_insurance(patient_insurance_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_claim_staff 
+        FOREIGN KEY (processed_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_claim_amount CHECK (claim_amount > 0),
+    CONSTRAINT chk_approved_amount CHECK (approved_amount IS NULL OR approved_amount >= 0)
+);
