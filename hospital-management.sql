@@ -172,3 +172,92 @@ CREATE TABLE doctor_schedule (
     CONSTRAINT unique_doctor_day_time 
         UNIQUE (doctor_id, day_of_week, start_time)
 );
+
+
+-- SECTION 2: PATIENT MANAGEMENT
+
+-- TABLE: BLOOD_GROUPS
+-- Reference table for blood types
+CREATE TABLE blood_groups (
+    blood_group_id INT AUTO_INCREMENT PRIMARY KEY,
+    blood_type VARCHAR(5) NOT NULL UNIQUE,
+    description VARCHAR(50)
+);
+
+-- TABLE: PATIENTS
+-- Patient registration and demographic information
+CREATE TABLE patients (
+    patient_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_number VARCHAR(20) NOT NULL UNIQUE,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    date_of_birth DATE NOT NULL,
+    gender ENUM('Male', 'Female', 'Other', 'Prefer not to say') NOT NULL,
+    blood_group_id INT,
+    email VARCHAR(100),
+    phone VARCHAR(20) NOT NULL,
+    address TEXT,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    zip_code VARCHAR(20),
+    country VARCHAR(100) DEFAULT 'USA',
+    emergency_contact_name VARCHAR(100) NOT NULL,
+    emergency_contact_phone VARCHAR(20) NOT NULL,
+    emergency_contact_relation VARCHAR(50),
+    registration_date DATE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_patient_blood_group 
+        FOREIGN KEY (blood_group_id) 
+        REFERENCES blood_groups(blood_group_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT chk_patient_dob CHECK (date_of_birth < CURDATE()),
+    CONSTRAINT chk_patient_email CHECK (email IS NULL OR email LIKE '%_@__%.__%')
+);
+
+-- TABLE: PATIENT_ALLERGIES
+-- Track patient allergies
+CREATE TABLE patient_allergies (
+    allergy_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT NOT NULL,
+    allergen VARCHAR(100) NOT NULL,
+    reaction TEXT,
+    severity ENUM('Mild', 'Moderate', 'Severe', 'Life-threatening') NOT NULL,
+    diagnosed_date DATE,
+    notes TEXT,
+    
+    CONSTRAINT fk_allergy_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+-- TABLE: PATIENT_MEDICAL_HISTORY
+-- Patient's medical history
+CREATE TABLE patient_medical_history (
+    history_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT NOT NULL,
+    condition_name VARCHAR(200) NOT NULL,
+    diagnosis_date DATE NOT NULL,
+    status ENUM('Active', 'Resolved', 'Chronic', 'Under Treatment') NOT NULL,
+    notes TEXT,
+    recorded_by_staff_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_history_patient 
+        FOREIGN KEY (patient_id) 
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_history_staff 
+        FOREIGN KEY (recorded_by_staff_id) 
+        REFERENCES staff(staff_id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE
+);
